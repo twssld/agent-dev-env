@@ -1,0 +1,7 @@
+{
+  "name": "dev-tools",
+  "description": "个人开发工具集：AI 报告生成、Obsidian vault 检查、Git 推送工作流、设计评审等",
+  "author": {
+    "name": "twssld"
+  }
+}
