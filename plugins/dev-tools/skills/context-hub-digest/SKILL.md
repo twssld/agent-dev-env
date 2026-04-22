@@ -25,12 +25,26 @@ target_dirs:
 - 仓库：`/Users/taowei/code/context-hub`
 - 目标目录：`plugins/java-dev-kit/`、`plugins/quality-kit/`、`plugins/sdd/`、`plugins/utilities/`
 - 时间窗口：最近 7 天（用 `git log --since` 过滤，以 `date` 命令的今天为基准）
+- **分支约束**：只统计已合入 `origin/master` 的 commits，未合并的 feature 分支**不纳入**
 
 ## 调研步骤
-1. `cd /Users/taowei/code/context-hub && git log --since=... --name-status -- <4 个目录>` 拉取窗口内的 commits。
-2. 对口语化/疑似笔误的 commit message，用 `git show <hash>` 看真实 diff 再下结论。
-3. 按 **plugin → 主题维度** 提炼 2-4 个主线改动，同功能域合并。
-4. 应用「克制原则」：选择规则枚举、文案修订、文档同步、枚举值扩展等次级项一律砍掉。
+
+1. 先同步远端再查询，**显式指定 `origin/master`**：
+   ```bash
+   cd /Users/taowei/code/context-hub && git fetch origin master
+   git log origin/master --since="7 days ago" --name-status -- \
+     plugins/java-dev-kit plugins/quality-kit plugins/sdd plugins/utilities
+   ```
+   **严禁使用 `--all`**（会把未合并的 feature 分支混进来）。
+   **严禁不带分支参数的裸 `git log`**（默认 HEAD 可能漂到 feature 分支）。
+
+2. 对每条候选 commit，用 `git branch -r --contains <hash> | grep -x '  origin/master'` 交叉验证，确认真的在 master 上。空输出 → 丢弃该 commit，不写进周报。
+
+3. 对口语化/疑似笔误的 commit message，用 `git show <hash>` 看真实 diff 再下结论。
+
+4. 按 **plugin → 主题维度** 提炼 2-4 个主线改动，同功能域合并。
+
+5. 应用「克制原则」：选择规则枚举、文案修订、文档同步、枚举值扩展等次级项一律砍掉。
 
 ## 输出骨架
 
@@ -125,6 +139,8 @@ target_dirs:
 
 ## 自检清单（输出前逐条核对）
 
+- [ ] **所有写入周报的 commit 都已用 `git branch -r --contains <hash>` 确认属于 `origin/master`**（未合并分支的改动绝对不能写）
+- [ ] git log 查询显式指定 `origin/master`，没有用 `--all` 也没有用裸 `git log`
 - [ ] 顶部用 📣 开头
 - [ ] 每个插件分类独立 emoji
 - [ ] 分类主线单一判断，无 `+`/`/`/`与` 复合
