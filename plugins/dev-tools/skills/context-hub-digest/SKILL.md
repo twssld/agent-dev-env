@@ -5,7 +5,8 @@ description: >
   repository only, formatted as an emoji-categorized single-line bullet list
   suitable for group-chat broadcast. Scoped strictly to the four plugins under
   /Users/taowei/code/context-hub (java-dev-kit, quality-kit, sdd, utilities)
-  over the past 7 days. Output is Chinese and 14 lines or fewer.
+  over the past 7 days. Output is Chinese and stays short: line count
+  scales linearly with the number of changed plugins.
   Use when the user says "context-hub 周报",
   "context-hub 插件周报", "context-hub 本周改动", "context-hub 改动速览",
   or pastes the context-hub path and asks for a weekly summary.
@@ -29,22 +30,76 @@ target_dirs:
 
 ## 调研步骤
 
-1. 先同步远端再查询，**显式指定 `origin/master`**：
-   ```bash
-   cd /Users/taowei/code/context-hub && git fetch origin master
-   git log origin/master --since="7 days ago" --name-status -- \
-     plugins/java-dev-kit plugins/quality-kit plugins/sdd plugins/utilities
-   ```
-   **严禁使用 `--all`**（会把未合并的 feature 分支混进来）。
-   **严禁不带分支参数的裸 `git log`**（默认 HEAD 可能漂到 feature 分支）。
+### Step 1：同步远端并锁定时间窗口与基线
 
-2. 对每条候选 commit，用 `git branch -r --contains <hash> | grep -x '  origin/master'` 交叉验证，确认真的在 master 上。空输出 → 丢弃该 commit，不写进周报。
+```bash
+cd /Users/taowei/code/context-hub && git fetch origin master
+```
 
-3. 对口语化/疑似笔误的 commit message，用 `git show <hash>` 看真实 diff 再下结论。
+用 `date` 算出 `SINCE`（7 天前，格式 `YYYY-MM-DD`）和 `END`（今天）。后续所有查询**都基于 `origin/master`**：
 
-4. 按 **plugin → 主题维度** 提炼 2-4 个主线改动，同功能域合并。
+```bash
+# 拉出 origin/master 上本窗口内的 commit 列表（只做 plugin 级统计用）
+git log origin/master --since="$SINCE" --pretty=format:"%h %ad %s" --date=short -- \
+  plugins/java-dev-kit plugins/quality-kit plugins/sdd plugins/utilities
+```
 
-5. 应用「克制原则」：选择规则枚举、文案修订、文档同步、枚举值扩展等次级项一律砍掉。
+- **严禁使用 `--all`**（会把未合并的 feature 分支混进来）
+- **严禁裸 `git log`**（默认 HEAD 可能漂到 feature 分支）
+- 如果需要对单个 commit 做身份交叉验证：`git branch -r --contains <hash> | grep -x '  origin/master'`，空输出 → 丢弃
+
+### Step 2：为每个"有改动"的 plugin 生成聚合 diff
+
+**核心原则：以 plugin 为维度汇总整个窗口的代码改动，不依赖单个 commit message 做总结。**
+
+对每个目标 plugin 分别执行（确定窗口首尾两个端点）：
+
+```bash
+# 找到 origin/master 上窗口开始日之前的最后一次提交，作为 BASE
+BASE=$(git rev-list -1 --before="$SINCE 00:00:00" origin/master)
+HEAD=origin/master
+
+# 该 plugin 在整个窗口内的"最终净变化"
+git diff --stat "$BASE" "$HEAD" -- plugins/<name>
+git diff "$BASE" "$HEAD" -- plugins/<name>
+```
+
+若 `--stat` 为空 → 该 plugin **本周无改动**，直接归入 `💤`，不需要进入后续分析。
+
+### Step 3：并行派发 subagent 做 plugin 级分析
+
+对"有改动"的 plugin，**同一条消息里并行发出多个 Agent 调用**（每个 plugin 一个 subagent），要求：
+
+- 每个 subagent 只看**自己那一个 plugin** 的 `--stat` 和 `diff`，**不看 commit message**
+- 基于**代码实际改动**提炼 2-4 条主线，每条要能回答"改的是哪个字段/文件/行为"
+- 输出固定结构（便于主 agent 拼装）：
+
+  ```
+  ## <plugin 名>
+  主线判断: <一句话，带判断词如"规范收敛"/"稳定性修复"/"能力扩展"，主线必须单一>
+  emoji: <📐/🔧/✨/🧩 等，按主线语义选>
+
+  主题 1
+  - 维度标签: <抽象名词短语>
+  - 描述: <≤50 中文字，含 skill 名 + 关键字段/文件/行为>
+  - 证据文件: <列 1-3 个最代表性的文件路径>
+
+  主题 2
+  ...
+  ```
+
+- Subagent prompt 中需复述本 SKILL 的 **Bullet 规则 + 三条红线 + 克制原则**（见下文），防止 subagent 自由发挥。
+
+### Step 4：主 agent 合成最终周报
+
+1. 收集各 subagent 结果
+2. 按 `本文件「输出骨架」` 拼装
+3. 过「自检清单」逐项验证
+4. 未改动的 plugin 合并到 `💤 本周无改动` 节
+
+### 克制原则（subagent 与主 agent 都遵守）
+
+选择规则枚举、文案修订、文档同步、枚举值扩展等次级项一律砍掉。问自己：**这条信息对群聊读者的价值，是否值得占掉一条 bullet？** 否 → 删。
 
 ## 输出骨架
 
@@ -88,7 +143,7 @@ target_dirs:
 - ✅「需求阶段克制」「任务模型精简」「Diff 生成链路修复」「执行流程加固」
 - ❌「移除 integrates 字段」（动作描述）/「diff 改走 pathspec」（实现细节）
 
-### Bullet 描述（三条红线）
+### Bullet 描述（四条红线）
 
 #### 🔴 红线 1：禁空心描述
 读完必须能答"改的是哪个字段/文件/行为"。
@@ -108,6 +163,16 @@ target_dirs:
 判断："这些变化对下游呈现为同一个接口变化吗？" 是 → 合并。
 
 **典型示例**：code-reviewer 的 diff 生成修复 + `agent → topic` 字段对齐 + 脚本更新 → 全部属于"结果产出链路"一个功能域，**必须合并到一条 bullet**，不要把字段对齐拆到"执行流程加固"。
+
+#### 🔴 红线 4：只写"本周新增的变化"，不写既有能力
+读者默认已经知道每个 skill 本来能做什么。bullet 只能描述**这周 diff 里真实发生的增量动作**（新增、删除、改名、迁移、约束变化），**不要**把"既有设计"当成本周变化写。
+
+自检法：把描述里的动词抠出来 →"支持/接受/可以/允许"之类静态能力描述 → 高度警惕，大概率是在讲既有功能。应该换成**本周发生的动作**：新增、移除、迁出、改为、统一到、合并、拆分、下线、接通、替换。
+
+- ❌ 既有能力：「implement 接受 sketch.md 作为 tasks.md 的替代入口」（implement 本来就是执行入口，这句读完不知道**本周**发生了什么）
+- ❌ 反推不出动作：「小改动写 sketch.md 即可，不必展开 tasks.md」（sketch 本来就是给小改动用的）
+- ✅ 增量动作：「sketch 接通 implement：implement 新增对 sketch.md 的直接读取」
+- ✅ 增量动作：「feishu-doc 迁出：feishu-doc skill 与 lark-mcp 配置迁出为独立 plugin」
 
 ### 允许出现的证据
 - skill 名（`clarify`、`tasks`）
@@ -134,13 +199,27 @@ target_dirs:
 - ❌ 次级增强项（选择规则分类枚举、文案修订、文档同步单列、枚举值扩展）
 - ❌ 超过 50 字的 bullet、空心描述
 
-### 篇幅
-全文整体 ≤ **14 行**（含空行、含标题）
+### 篇幅（按 plugin 数量线性计算）
+
+全文行数 = 2（标题+空行）+ **每个有改动 plugin 约 (bullet 数 + 2) 行** + 💤 节 2 行（若有）。
+
+典型规模参考：
+
+| 有改动 plugin 数 | 是否有 💤 | 预期行数 |
+|---|---|---|
+| 1 | 是 | ~8 行 |
+| 2 | 是 | ~14 行 |
+| 3 | 是 | ~17 行 |
+| 4 | 否 | ~20 行 |
+
+**目标仍是极简**：每个 plugin 的 bullet 数**宁少勿多**，按「克制原则」砍次级。如果某个 plugin 只能凑出 1 条像样的 bullet，说明它这周没有"主线级"改动，考虑把它改为"轻微动态"一句话带过（例：`🧩 utilities · feishu-doc 迁出为独立 plugin`，不展开 bullet），或合并到 💤 后面加「+ 轻微调整」一句话。
 
 ## 自检清单（输出前逐条核对）
 
-- [ ] **所有写入周报的 commit 都已用 `git branch -r --contains <hash>` 确认属于 `origin/master`**（未合并分支的改动绝对不能写）
-- [ ] git log 查询显式指定 `origin/master`，没有用 `--all` 也没有用裸 `git log`
+- [ ] 所有查询都基于 `origin/master`，没有用 `--all` 也没有用裸 `git log`
+- [ ] 每个"有改动"的 plugin 都已用 `git diff BASE HEAD -- plugins/<name>` 产出**聚合 diff** 并作为 subagent 分析依据
+- [ ] 主线判断基于**聚合 diff 的实际代码改动**，**不依赖 commit message**
+- [ ] 多个 plugin 的分析是通过**并行 subagent** 处理的（同一条消息里多个 Agent 调用）
 - [ ] 顶部用 📣 开头
 - [ ] 每个插件分类独立 emoji
 - [ ] 分类主线单一判断，无 `+`/`/`/`与` 复合
@@ -151,9 +230,10 @@ target_dirs:
 - [ ] **Bullet 内无 git 内部术语**（pathspec/commit^/HEAD^/base_commit/rev-parse 等绝对禁止）
 - [ ] **字段对齐/展示变更已并入其所属功能域 bullet**，未被错拆到"执行流程加固"之类
 - [ ] 同功能域改动已合并
+- [ ] **每条 bullet 都是本周 diff 里真实发生的增量动作**（新增/移除/迁出/改为/统一到/合并/拆分/接通等），不是既有能力描述（"支持/接受/可以/允许"高度警惕）
 - [ ] 无改动 plugin 合并到 `💤 本周无改动`
 - [ ] 无"影响的 skill/行为变化/一句话总结/飞书链接"收尾
-- [ ] 全文 ≤ 14 行
+- [ ] 行数落在「篇幅线性规则」的典型值附近，每个 plugin 的 bullet 数已按克制原则压到最小
 
 ## 参考产出样例
 
@@ -164,7 +244,7 @@ target_dirs:
     • 需求阶段克制：clarify 禁 HOW 提问，Clarifications log 章节删除并就地回填
     • 任务模型精简：tasks 去掉 integrates 字段，symbols 只列符号名，task 描述自包含
     • 验收方法标准化：Acceptance/Edge 统一 US{N}-{M} 编号，门禁按测试类合并为一条 checkbox
-    • 轻量路径扩展：implement 支持 sketch.md 作为 tasks.md 的替代入口
+    • sketch 接通 implement：implement 新增对 sketch.md 的直接读取
 
 🔧 Quality-Kit · code-reviewer 结果产出链路修复
     • Diff 生成链路修复：脚本与展示字段对齐到 topic
