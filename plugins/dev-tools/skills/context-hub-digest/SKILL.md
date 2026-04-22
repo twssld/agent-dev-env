@@ -139,11 +139,21 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 - 每条 ≤ 50 中文字
 
 ### Bullet 维度标签
-必须是**抽象名词短语**：
-- ✅「需求阶段克制」「任务模型精简」「Diff 生成链路修复」「执行流程加固」
+
+标签是一个短标题，概括这条 bullet 讲的"哪一块变了"。两条要求：
+
+**1. 自然短语，不是动作描述也不是实现细节**
+- ✅「clarify 不再讨论 HOW」「tasks 精简」「Diff 生成修复」「执行顺序收紧」
 - ❌「移除 integrates 字段」（动作描述）/「diff 改走 pathspec」（实现细节）
 
-### Bullet 描述（四条红线）
+**2. 字数不要刻意对齐**
+
+这是最容易出"AI 味"的地方。不要把一组标签凑成整齐的四字短语（"验收编号贯通 / 门禁模型重塑 / 阶段职责收敛 / 轻量路径接通"——这种排比读起来假，人写周报不会这样）。按内容自然长度来，有的 2-3 字，有的 6-8 字，混杂是正常的。
+
+- ❌ AI 味：「验收编号贯通」「门禁模型重塑」「阶段职责收敛」「轻量路径接通」（四条整齐四字）
+- ✅ 参差：「验收场景统一编号」「tasks 精简」「clarify 限定在 WHAT/WHY」「sketch 接通 implement」
+
+### Bullet 描述（五条红线）
 
 #### 🔴 红线 1：禁空心描述
 读完必须能答"改的是哪个字段/文件/行为"。
@@ -173,6 +183,21 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 - ❌ 反推不出动作：「小改动写 sketch.md 即可，不必展开 tasks.md」（sketch 本来就是给小改动用的）
 - ✅ 增量动作：「sketch 接通 implement：implement 新增对 sketch.md 的直接读取」
 - ✅ 增量动作：「feishu-doc 迁出：feishu-doc skill 与 lark-mcp 配置迁出为独立 plugin」
+
+#### 🔴 红线 5：去 AI 味
+
+AI 生成的技术周报有几个典型坏味：
+
+**a. 对仗/排比结构**：整页 bullet 标签都是同字数短语（四字、六字），或动宾结构高度整齐。人写不会这样——真实周报的标签长度必然**参差不齐**。
+
+**b. 宏大动词**：「重塑 / 重构 / 贯通 / 收敛 / 治理 / 闭环 / 体系化 / 标准化」——这类词本身没错，但 bullet 里**扎堆出现就显假**。一份周报里最多出现 1-2 次这类词。其余用**具体动词**：新增、删除、改为、迁出、合并、统一到、接通。
+
+**c. 主线判断也不能扎堆用宏大词**：如果分类主线是「XX 体系重构」+「XX 闭环修复」+「XX 边界调整」三条并排，整份报告就"AI 味拉满"。至少一条用更平实的表述（例："code-reviewer 修脚本"、"utilities 拆出 feishu-doc"）。
+
+**d. 自检法**：把周报给自己读一遍，如果读起来像技术公众号标题 → AI 味过重，重写。
+
+- ❌ AI 味：「验收体系重构」「评审闭环修复」「门禁模型重塑」「轻量路径接通」
+- ✅ 自然：「验收方式统一」「code-reviewer 脚本修复」「tasks 模板精简」「sketch 接通 implement」
 
 ### 允许出现的证据
 - skill 名（`clarify`、`tasks`）
@@ -231,6 +256,8 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 - [ ] **字段对齐/展示变更已并入其所属功能域 bullet**，未被错拆到"执行流程加固"之类
 - [ ] 同功能域改动已合并
 - [ ] **每条 bullet 都是本周 diff 里真实发生的增量动作**（新增/移除/迁出/改为/统一到/合并/拆分/接通等），不是既有能力描述（"支持/接受/可以/允许"高度警惕）
+- [ ] **维度标签字数参差不齐**，不是整齐的四字/六字排比
+- [ ] 「重塑/重构/贯通/收敛/治理/闭环/体系化」这类宏大词在**整份周报**里不超过 1-2 处，主线 + bullet 标签加起来算
 - [ ] 无改动 plugin 合并到 `💤 本周无改动`
 - [ ] 无"影响的 skill/行为变化/一句话总结/飞书链接"收尾
 - [ ] 行数落在「篇幅线性规则」的典型值附近，每个 plugin 的 bullet 数已按克制原则压到最小
@@ -240,15 +267,15 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 ```
 📣 Context Hub 本周插件改动速览（2026-04-15 ~ 2026-04-22）
 
-📐 SDD · 验收驱动的任务模型收敛
-    • 需求阶段克制：clarify 禁 HOW 提问，Clarifications log 章节删除并就地回填
-    • 任务模型精简：tasks 去掉 integrates 字段，symbols 只列符号名，task 描述自包含
-    • 验收方法标准化：Acceptance/Edge 统一 US{N}-{M} 编号，门禁按测试类合并为一条 checkbox
+📐 SDD · 验收方式统一
+    • clarify 限定在 WHAT/WHY：禁 HOW 类追问，Clarifications log 章节删除并就地回填
+    • tasks 精简：去掉 integrates 字段，symbols 只列符号名
+    • 验收场景统一编号：Acceptance/Edge 改用 US{N}-{M} 编号，门禁按测试类合并
     • sketch 接通 implement：implement 新增对 sketch.md 的直接读取
 
-🔧 Quality-Kit · code-reviewer 结果产出链路修复
-    • Diff 生成链路修复：脚本与展示字段对齐到 topic
-    • 执行流程加固：code-reviewer 与 phab-aicr-fix 强制按 Step 顺序执行，禁止跳过
+🔧 Quality-Kit · code-reviewer 脚本修复
+    • Diff 生成修复：脚本与展示字段对齐到 topic
+    • 执行顺序收紧：code-reviewer 与 phab-aicr-fix 强制按 Step 顺序执行，禁止跳过
 
 💤 本周无改动
     • java-dev-kit、utilities
