@@ -23,6 +23,12 @@ target_root: plugins
 - 仓库：`/Users/taowei/code/context-hub`，目标 `plugins/` 下所有子目录
 - **数据源锁定**：全程只看 `origin/master`（git log / git diff / `git show origin/master:<path>`）。**不 Read 本地文件**，不用 `--all`，不用裸 `git log`，不用 `ls plugins/`——本地工作区、feature 分支、未追踪目录都可能与 origin 不一致
 - 时间窗口：`$ARGUMENTS` 里解析时间短语为 `SINCE`/`END`（`YYYY-MM-DD`），默认 "过去 7 天"（`SINCE=今天-7d, END=今天-1d`，例：今天 29 号 → 22 ~ 28）。**`END` 始终 ≤ 今天-1d**；标题/招呼里的时段词与窗口一致；解析不明先追问
+- **Plugin 黑名单**（不分析、不汇总、不进 💤，枚举后直接剔除）：
+  ```
+  cn-backend-workflow, docx-operator, fe-b-react-dev-kit, fe-b-vue2-dev-kit,
+  fe-b-vue3-dev-kit, fe-c-dev-kit, fe-d2c, fe-plugin-report, jar-inspect,
+  project-plugin-check, sea-backend-workflow, sea-risk, test-kit
+  ```
 
 ## 调研步骤
 
@@ -32,12 +38,16 @@ target_root: plugins
 cd /Users/taowei/code/context-hub && git fetch origin master
 
 # 从 origin/master tree 枚举所有 plugin（本地未推送的目录会被自动排除）
-git ls-tree -d --name-only origin/master plugins/ | sed 's|^plugins/||'
+# 并剔除黑名单
+BLACKLIST='^(cn-backend-workflow|docx-operator|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|jar-inspect|project-plugin-check|sea-backend-workflow|sea-risk|test-kit)$'
+git ls-tree -d --name-only origin/master plugins/ | sed 's|^plugins/||' | grep -Ev "$BLACKLIST"
 
 # 按解析出的 SINCE / END，拉 origin/master 上本窗口内的 commit 列表
 git log origin/master --since="$SINCE" --until="$END 23:59:59" \
   --pretty=format:"%h %ad %s" --date=short -- plugins/
 ```
+
+**黑名单处理**：枚举结果里的黑名单 plugin 直接丢弃；后续 Step 2/3 不为它们生成 diff、不派 subagent、💤 节也不列出它们——整份周报完全不提及。
 
 如需对单个 commit 做身份交叉验证：`git branch -r --contains <hash> | grep -x '  origin/master'`，空输出 → 丢弃。
 
@@ -129,7 +139,7 @@ Hi 各位，<时段词> context-hub 这边的主要变动如下 👇
 **优先 plugin（有改动必须按此顺序排在最前）**：
 
 ```
-sdd → fe-sdd → quality-kit → java-dev-kit → test-kit → devops-workflow
+sdd → fe-sdd → quality-kit → java-dev-kit → devops-workflow
 ```
 
 - 名单里有改动的按上述顺序排在最前，无改动的自动跳过
@@ -279,11 +289,12 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 
 ## 自检清单（主 agent 易漏项，逐条核对）
 
-- [ ] Plugin 列表通过 `git ls-tree origin/master plugins/` 从 git tree 枚举（不是 `ls plugins/`）
+- [ ] Plugin 列表通过 `git ls-tree origin/master plugins/` 从 git tree 枚举（不是 `ls plugins/`），并已用黑名单过滤
+- [ ] 黑名单 plugin 在整份周报里完全未出现（不分析、不进 💤、不被提及）
 - [ ] 时间窗口按 `$ARGUMENTS` 解析（默认过去 7 天；`END` ≤ 今天-1d），标题/打招呼时段词与 `SINCE~END` 一致
 - [ ] 主线判断基于**聚合 diff 的实际代码改动**，不依赖 commit message
 - [ ] 多个 plugin 的分析通过**并行 subagent** 处理（同一条消息里多个 Agent 调用）
-- [ ] **优先 plugin 顺序正确**：`sdd → fe-sdd → quality-kit → java-dev-kit → test-kit → devops-workflow` 中有改动的已按此顺序排在最前
+- [ ] **优先 plugin 顺序正确**：`sdd → fe-sdd → quality-kit → java-dev-kit → devops-workflow` 中有改动的已按此顺序排在最前
 - [ ] **每个 emoji 在整份周报里最多出现一次**，语义相近的已改用同类不同变体
 - [ ] **维度标签字数参差**，不是整齐的四字/六字排比
 - [ ] 「重塑/重构/贯通/收敛/治理/闭环/体系化」在整份周报里不超过 1-2 处
