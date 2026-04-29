@@ -1,15 +1,18 @@
 ---
 name: context-hub-digest
 description: >
-  Generate a concise weekly FYI digest of plugin changes in the context-hub
+  Generate a concise FYI digest of plugin changes in the context-hub
   repository only, formatted as an emoji-categorized single-line bullet list
   suitable for group-chat broadcast. Scoped to all plugins discovered under
-  /Users/taowei/code/context-hub/plugins/ over the past 7 days (plugin list is
-  dynamically enumerated, not hard-coded). Output is Chinese and stays short:
-  line count scales linearly with the number of changed plugins.
+  /Users/taowei/code/context-hub/plugins/ (plugin list is dynamically
+  enumerated, not hard-coded). Default window is the past 7 days, but the
+  user can override it with phrases like "过去两周"/"最近 3 天"/"上个月"/
+  "2026-04-01 到今天". Output is Chinese and stays short: line count scales
+  linearly with the number of changed plugins.
   Use when the user says "context-hub 周报",
   "context-hub 插件周报", "context-hub 本周改动", "context-hub 改动速览",
-  or pastes the context-hub path and asks for a weekly summary.
+  "context-hub 过去两周/最近 N 天改动", or pastes the context-hub path and
+  asks for a summary.
 repo: /Users/taowei/code/context-hub
 target_root: plugins
 ---
@@ -21,8 +24,45 @@ target_root: plugins
 ## 范围
 - 仓库：`/Users/taowei/code/context-hub`
 - 目标目录：`plugins/` 下**所有子目录**（每次运行时动态枚举，不要硬编码 plugin 名单）
-- 时间窗口：最近 7 天（用 `git log --since` 过滤，以 `date` 命令的今天为基准）
+- 时间窗口：**默认** 过去 7 天（不含今天）；用户可通过 `$ARGUMENTS` 指定其他范围（见下节）
 - **分支约束**：只统计已合入 `origin/master` 的 commits，未合并的 feature 分支**不纳入**
+
+### 时间范围解析（通过 `$ARGUMENTS` 接参）
+
+Skill 支持 `$ARGUMENTS` 占位符。用户调用时带的时间短语会作为参数传入，例如：
+
+- `context-hub 周报`（`$ARGUMENTS` 为空）→ 默认过去 7 天
+- `context-hub 过去两周改动`（`$ARGUMENTS = 过去两周`）→ 过去 14 天
+- `context-hub 最近 5 天`（`$ARGUMENTS = 最近 5 天`）→ 过去 5 天
+
+**关键约束：END 不含今天**。今天的数据被视为"尚未稳定"，一律排除。`END = 昨天`（今天 - 1 天）。
+
+**解析表**（`$ARGUMENTS` → `SINCE` / `END` / 标题标签）：
+
+| $ARGUMENTS 内容 | SINCE | END | 标题标签 |
+|---|---|---|---|
+| 空 / "本周" / "周报" / "最近一周" / "过去一周" | 昨天-7d（=今天-8d） | 昨天 | 本周 |
+| "过去两周" / "最近两周" / "近 14 天" | 昨天-14d | 昨天 | 近两周 |
+| "最近 N 天" / "过去 N 天"（N 任意整数） | 昨天-Nd | 昨天 | 近 N 天 |
+| "上周" | 昨天-14d | 昨天-7d | 上周 |
+| "本月" / "这个月" | 本月 1 号 | 昨天 | 本月 |
+| "上个月" | 上月 1 号 | 上月末 | 上月 |
+| "YYYY-MM-DD 到今天" | 该日期 | 昨天 | `SINCE ~ 昨天` |
+| "YYYY-MM-DD 到 YYYY-MM-DD" | 起 | 止 | `SINCE ~ END` |
+| 其他自定义 | 按自然语义解析 | 同上 | 人看得懂的中文短语 |
+
+**举例**（今天 = 2026-04-29）：
+
+- 默认 → SINCE = 2026-04-22，END = 2026-04-28（**不含 29**）
+- 过去两周 → SINCE = 2026-04-15，END = 2026-04-28
+- 最近 5 天 → SINCE = 2026-04-24，END = 2026-04-28
+
+**解析规则**：
+- 所有日期由 `date -v-Nd +%Y-%m-%d`（macOS）或 `date -d "N days ago" +%Y-%m-%d`（Linux）动态计算，**不要硬编码**
+- `END` 永远取 `今天-1d`，除非用户显式指定了更早的结束日期
+- 后续 `git log` / `git diff` 命令统一用 `--since="$SINCE" --until="$END 23:59:59"` 过滤；`BASE` 用 `--before="$SINCE 00:00:00"` 锁定；`HEAD` 用 `--before="$END 23:59:59"` 锁定
+- 标题日期格式保持 `YYYY-MM-DD ~ YYYY-MM-DD`
+- 如果 `$ARGUMENTS` 无法明确解析（例如"最近一段时间"），先追问"请确认具体时间范围（例：过去 14 天 / 2026-04-01 至今）"再动手
 
 ## 调研步骤
 
@@ -39,12 +79,13 @@ cd /Users/taowei/code/context-hub && git fetch origin master
 ls -1 plugins/
 ```
 
-用 `date` 算出 `SINCE`（7 天前，格式 `YYYY-MM-DD`）和 `END`（今天）。后续所有查询**都基于 `origin/master`**：
+按"时间范围解析"表把 `$ARGUMENTS` 映射到 `SINCE` 与 `END`（默认 `SINCE = 今天-8d`、`END = 今天-1d`，**END 不含今天**）。后续所有查询**都基于 `origin/master`**：
 
 ```bash
 # 拉出 origin/master 上本窗口内的 commit 列表（只做 plugin 级统计用）
 # pathspec 用上一步枚举出来的所有 plugins/<name>
-git log origin/master --since="$SINCE" --pretty=format:"%h %ad %s" --date=short -- plugins/
+git log origin/master --since="$SINCE" --until="$END 23:59:59" \
+  --pretty=format:"%h %ad %s" --date=short -- plugins/
 ```
 
 - **严禁使用 `--all`**（会把未合并的 feature 分支混进来）
@@ -58,9 +99,10 @@ git log origin/master --since="$SINCE" --pretty=format:"%h %ad %s" --date=short 
 对每个目标 plugin 分别执行（确定窗口首尾两个端点）：
 
 ```bash
-# 找到 origin/master 上窗口开始日之前的最后一次提交，作为 BASE
+# 窗口起点之前的最后一次 origin/master 提交，作为 BASE
 BASE=$(git rev-list -1 --before="$SINCE 00:00:00" origin/master)
-HEAD=origin/master
+# 窗口终点那一刻 origin/master 上的最后一次提交，作为 HEAD（END 不含今天）
+HEAD=$(git rev-list -1 --before="$END 23:59:59" origin/master)
 
 # 该 plugin 在整个窗口内的"最终净变化"
 git diff --stat "$BASE" "$HEAD" -- plugins/<name>
@@ -107,7 +149,9 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 ## 输出骨架
 
 ```
-📣 Context Hub 本周插件改动速览（YYYY-MM-DD ~ YYYY-MM-DD）
+📣 Context Hub <标题标签>插件改动速览（YYYY-MM-DD ~ YYYY-MM-DD）
+
+Hi 各位，<打招呼句，根据时间范围替换> 👇
 
 <emoji> <插件名> · <一句话主线判断>
     • <维度标签>：<一句话描述>
@@ -127,13 +171,32 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 
 ### 顶部（标题 + 打招呼）
 
-这是给技术部整体发的群聊消息，不是技术文档。顶部固定两行，**打招呼那句照抄，不要改写**：
+这是给技术部整体发的群聊消息，不是技术文档。顶部固定两行，格式如下（**只替换"标题标签"和打招呼里的时段词**，其他照抄）：
 
 ```
-📣 Context Hub 本周插件改动速览（日期 ~ 日期）
+📣 Context Hub <标题标签>插件改动速览（日期 ~ 日期）
 
-Hi 各位，本周 context-hub 这边的主要变动如下 👇
+Hi 各位，<时段词> context-hub 这边的主要变动如下 👇
 ```
+
+**时段词对应表**（和"时间范围解析"表完全对应）：
+
+| 时间范围 | `<标题标签>` | `<时段词>` |
+|---|---|---|
+| 默认 7 天 | `本周` | `本周` |
+| 近两周 / 近 14 天 | `近两周` | `最近两周` |
+| 近 N 天（N ≠ 7、14） | `近 N 天` | `最近 N 天` |
+| 上周 | `上周` | `上周` |
+| 本月 | `本月` | `本月` |
+| 上月 | `上月` | `上个月` |
+| 自定义 YYYY-MM-DD 到今天 | `近期` | `从 YYYY-MM-DD 到现在` |
+| 自定义起止 | `近期` | `YYYY-MM-DD 至 YYYY-MM-DD` |
+
+**范例**（今天 = 2026-04-29，END 固定为 2026-04-28）：
+
+- 默认：`📣 Context Hub 本周插件改动速览（2026-04-22 ~ 2026-04-28）` + `Hi 各位，本周 context-hub 这边的主要变动如下 👇`
+- 近两周：`📣 Context Hub 近两周插件改动速览（2026-04-15 ~ 2026-04-28）` + `Hi 各位，最近两周 context-hub 这边的主要变动如下 👇`
+- 自定义：`📣 Context Hub 近期插件改动速览（2026-04-01 ~ 2026-04-28）` + `Hi 各位，4 月 1 日至今 context-hub 这边的主要变动如下 👇`（时段词可视情况微调，保持口语化）
 
 ### 插件排序规则
 
@@ -275,9 +338,13 @@ AI 生成的技术周报有几个典型坏味：
 - 脚本名（作为整体代称，不展开 git 语法）
 
 ### 💤 无改动
+
+标题里的时段词要和顶部保持一致（"本周 / 近两周 / 近 N 天 / 本月 / 上月 / 窗口内"），不要固定写"本周"。
+
 ```
-💤 本周无改动
-    • <插件名>、<插件名>
+💤 <时段词>无改动或轻微调整
+    • 无改动：<插件名>、<插件名>
+    • 轻微调整：<插件名>（一句话说明）
 ```
 
 ### 末尾
@@ -316,7 +383,9 @@ AI 生成的技术周报有几个典型坏味：
 - [ ] 每个"有改动"的 plugin 都已用 `git diff BASE HEAD -- plugins/<name>` 产出**聚合 diff** 并作为 subagent 分析依据
 - [ ] 主线判断基于**聚合 diff 的实际代码改动**，**不依赖 commit message**
 - [ ] 多个 plugin 的分析是通过**并行 subagent** 处理的（同一条消息里多个 Agent 调用）
-- [ ] 顶部用 📣 开头，第二行**照抄** `Hi 各位，本周 context-hub 这边的主要变动如下 👇`，不要改写
+- [ ] **时间范围已按"时间范围解析"表解析**（`$ARGUMENTS` 为空时默认过去 7 天；否则按表替换 `SINCE` / `END` / 时段词）
+- [ ] **`END` 不含今天**（`END = 今天 - 1d`，除非用户显式指定了更早的终点日期）
+- [ ] 顶部用 📣 开头，标题里的"<标题标签>"与打招呼里的"<时段词>"已同步替换（默认是"本周"；非默认时段**不能**还写"本周"）
 - [ ] **意义型 bullet 的维度标签没有抽象对仗短语**（"实现后的兜底/轻量路径打通/验收分层松绑"这类全部重写成口语）
 - [ ] 每个插件分类独立 emoji
 - [ ] **优先 plugin 顺序正确**：`sdd → fe-sdd → quality-kit → java-dev-kit → test-kit → devops-workflow` 中**有改动**的已按此顺序排在最前
