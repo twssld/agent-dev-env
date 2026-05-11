@@ -1,21 +1,16 @@
 ---
 name: ai-report
 description: >
-  Generate a comprehensive, engineering-focused AI progress report covering a
-  flexible time range (auto-detected from the latest existing report to yesterday).
-  Covers: agent harness & orchestration patterns, developer tools (Claude Code
-  skills, MCP servers, CLI tools), agent frameworks, trending GitHub AI repos,
-  builder voices (Boris, IndyDevDan, Riley Brown) and thought leaders (Karpathy,
-  Dario Amodei), important AI agent papers, context engineering, major model
-  releases, and tech reports. Written for software devs who want to stay
-  productive and relevant in the AI era. Output is a well-structured Markdown
-  file (with Mermaid charts and ASCII diagrams) in Chinese. Can be uploaded to
-  Feishu via /feishu-doc. Use this skill when the user mentions "AI weekly",
-  "AI report", "AI progress summary", "what's new in AI", "AI news report",
-  "agent landscape update", "write an AI report", "AI 周报", "AI 双周报",
-  "AI 进展总结", "dev tools update", "MCP news", "agent harness",
-  or any request for a recent AI landscape overview — even if they don't
-  explicitly say "report".
+  Generate a Chinese, engineering-focused AI progress report for a flexible
+  date range, auto-detected from the latest existing report unless the user
+  specifies dates. Cover recent AI agent papers, model releases, context
+  engineering, agent harnesses, developer tools, MCP/Claude Code skills,
+  trending GitHub AI repos, builder voices, and major industry updates. Output
+  a structured Markdown article with links, Mermaid charts, and ASCII diagrams;
+  it may be uploaded to Feishu via /feishu-doc. Use when the user asks for
+  "AI weekly", "AI report", "AI progress summary", "what's new in AI",
+  "agent landscape update", "dev tools update", "MCP news", "agent harness",
+  "AI 周报", "AI 双周报", "AI 进展总结", or a recent AI landscape overview.
 report_dir: wiki
 ---
 
