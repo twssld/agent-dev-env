@@ -24,7 +24,8 @@ Do not use this skill to blame people or agents. The unit of analysis is the rep
    python3 /path/to/ai-transcript-failure-analysis/scripts/scan_transcripts.py <root> [<root> ...]
    ```
 
-3. Manually validate top candidates with the evidence-chain standard.
+3. Manually validate every candidate with the evidence-chain standard.
+   - Walk the full candidate list. For each one, read its `first_user_message` and `hits` summary, then drill into the raw transcript for any candidate whose user intent is not unambiguously a decision from the summary alone. The `score` is a hit-density indicator, not a priority — sort by it for convenience, but do not truncate by it.
    - The scanner output is a coarse filter only. It reports **hint locations**, not labels. Do not treat `strong-vocab-hit:7` as "7 strong corrections"—a vocab hit just means a user message contained a word from the watch list near an agent action.
    - For each candidate, run the **decision vs steer test** (single core question, see `references/failure-criteria.md` → Decision vs Steer):
      > Can adding or improving repo feedforward / feedback meaningfully reduce the same kind of intervention from happening again, **with net-positive effect on the repo**?
