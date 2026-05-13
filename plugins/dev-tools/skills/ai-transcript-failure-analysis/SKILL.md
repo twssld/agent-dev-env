@@ -22,7 +22,6 @@ Do not use this skill to blame people or agents. The unit of analysis is the rep
 
    ```bash
    python3 /path/to/ai-transcript-failure-analysis/scripts/scan_transcripts.py <root> [<root> ...]
-   # Add --json for machine-readable output, --limit N to cap candidates.
    ```
 
 3. Manually validate top candidates with the evidence-chain standard.

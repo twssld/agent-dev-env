@@ -1003,8 +1003,8 @@ def scan_command(argv: List[str]) -> int:
         nargs="+",
         help="One or more transcript root directories",
     )
-    parser.add_argument("--min-score", type=float, default=1.0)
-    parser.add_argument("--limit", type=int, default=30)
+    parser.add_argument("--min-score", type=float, default=0.0)
+    parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of Markdown")
     parser.add_argument("--output", help="Write output to this file")
     args = parser.parse_args(argv)
