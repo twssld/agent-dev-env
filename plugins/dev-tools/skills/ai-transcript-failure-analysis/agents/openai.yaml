@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Transcript Failure Analysis"
+  short_description: "Find repo Harness gaps in transcripts"
+  default_prompt: "Analyze the transcript directory for candidates, validate evidence chains, and summarize repeated repo Harness failure patterns by frequency."
