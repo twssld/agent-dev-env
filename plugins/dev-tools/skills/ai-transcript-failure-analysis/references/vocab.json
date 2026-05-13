@@ -1,0 +1,73 @@
+{
+  "_doc": "Lexicons used by scan_transcripts.py. Edit here instead of the source. 'strong_corrections' / 'weak_corrections' divide steer-vocabulary by signal strength; 'build_command_hints' marks shell commands whose failure-text we want to surface; 'failure_text_hints' marks failure markers in tool_result. Substring match, case-insensitive.",
+  "strong_corrections": [
+    "不对",
+    "错了",
+    "改回去",
+    "不是这个意思",
+    "重新来",
+    "不应该",
+    "不能这样",
+    "你理解错",
+    "你搞错",
+    "不符合",
+    "撤回",
+    "回退",
+    "回滚",
+    "wrong",
+    "incorrect",
+    "not what i meant"
+  ],
+  "weak_corrections": [
+    "不用",
+    "不要",
+    "换个方案",
+    "这样不行",
+    "有问题",
+    "不需要",
+    "先别",
+    "别改",
+    "没必要",
+    "应该是",
+    "你应该"
+  ],
+  "build_command_hints": [
+    "mvn",
+    "gradle",
+    "./gradlew",
+    "npm test",
+    "npm run",
+    "yarn test",
+    "pnpm test",
+    "pytest",
+    "go test",
+    "cargo test",
+    "tsc",
+    "make test",
+    "xcodebuild"
+  ],
+  "failure_text_hints": [
+    "build failure",
+    "compilation failure",
+    "test failed",
+    "tests failed",
+    "failed",
+    "error",
+    "exception",
+    "traceback",
+    "报错",
+    "失败",
+    "错误",
+    "异常",
+    "找不到符号",
+    "cannot find symbol",
+    "could not resolve"
+  ],
+  "decision_request_phrases": [
+    "对不对",
+    "不对吗",
+    "有没有不对",
+    "不要符合我",
+    "不要迎合我"
+  ]
+}

@@ -1,0 +1,13 @@
+{"timestamp": "2026-04-01T00:00:00Z", "type": "user", "message": {"role": "user", "content": "请把 src/foo.ts 改成 BDD 风格的测试"}}
+{"timestamp": "2026-04-01T00:00:01Z", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Edit", "input": {"file_path": "src/foo.ts"}}]}}
+{"timestamp": "2026-04-01T00:00:02Z", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]}}
+{"timestamp": "2026-04-01T00:00:03Z", "type": "user", "message": {"role": "user", "content": "你又改错了，重做"}}
+{"timestamp": "2026-04-01T00:00:04Z", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t2", "name": "Edit", "input": {"file_path": "src/foo.ts"}}]}}
+{"timestamp": "2026-04-01T00:00:05Z", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t2", "content": "ok"}]}}
+{"timestamp": "2026-04-01T00:00:06Z", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t3", "name": "Edit", "input": {"file_path": "src/foo.ts"}}]}}
+{"timestamp": "2026-04-01T00:00:07Z", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t3", "content": "ok"}]}}
+{"timestamp": "2026-04-01T00:00:08Z", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t4", "name": "Bash", "input": {"command": "git restore src/foo.ts"}}]}}
+{"timestamp": "2026-04-01T00:00:09Z", "type": "user", "message": {"role": "user", "content": "<system-reminder>some env</system-reminder>请重新写一遍"}}
+{"timestamp": "2026-04-01T00:00:10Z", "type": "user", "message": {"role": "user", "content": "请重新写一遍并且加测试覆盖一下"}}
+{"timestamp": "2026-04-01T00:00:11Z", "type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t5", "name": "Bash", "input": {"command": "pytest tests/"}}]}}
+{"timestamp": "2026-04-01T00:00:12Z", "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t5", "content": "FAILED tests/test_foo.py::test_bar - AssertionError"}]}}
