@@ -26,9 +26,9 @@ target_root: plugins
 - **Plugin 黑名单**（不分析、不汇总、不进 💤，枚举后直接剔除）：
   ```
   cn-backend-workflow, docx-operator, fe-b-react-dev-kit, fe-b-vue2-dev-kit,
-  fe-b-vue3-dev-kit, fe-c-dev-kit, fe-d2c, fe-plugin-report, jar-inspect,
-  project-plugin-check, sea-backend-workflow, sea-risk, test-kit,
-  wecom-doc-general, wecom-meeting-report
+  fe-b-vue3-dev-kit, fe-c-dev-kit, fe-d2c, fe-plugin-report, fe-sdd,
+  jar-inspect, project-plugin-check, sea-backend-workflow, sea-risk,
+  test-kit, wecom-doc-general, wecom-meeting-report
   ```
 
 ## 调研步骤
@@ -40,7 +40,7 @@ cd /Users/taowei/code/context-hub && git fetch origin master
 
 # 从 origin/master tree 枚举所有 plugin（本地未推送的目录会被自动排除）
 # 并剔除黑名单
-BLACKLIST='^(cn-backend-workflow|docx-operator|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|jar-inspect|project-plugin-check|sea-backend-workflow|sea-risk|test-kit|wecom-doc-general|wecom-meeting-report)$'
+BLACKLIST='^(cn-backend-workflow|docx-operator|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|fe-sdd|jar-inspect|project-plugin-check|sea-backend-workflow|sea-risk|test-kit|wecom-doc-general|wecom-meeting-report)$'
 git ls-tree -d --name-only origin/master plugins/ | sed 's|^plugins/||' | grep -Ev "$BLACKLIST"
 
 # 按解析出的 SINCE / END，拉 origin/master 上本窗口内的 commit 列表
@@ -140,7 +140,7 @@ Hi 各位，<时段词> context-hub 这边的主要变动如下 👇
 **优先 plugin（有改动必须按此顺序排在最前）**：
 
 ```
-sdd → fe-sdd → quality-kit → java-dev-kit → devops-workflow
+sdd → quality-kit → java-dev-kit → devops-workflow
 ```
 
 - 名单里有改动的按上述顺序排在最前，无改动的自动跳过
@@ -295,7 +295,7 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 - [ ] 时间窗口按 `$ARGUMENTS` 解析（默认过去 7 天；`END` ≤ 今天-1d），标题/打招呼时段词与 `SINCE~END` 一致
 - [ ] 主线判断基于**聚合 diff 的实际代码改动**，不依赖 commit message
 - [ ] 多个 plugin 的分析通过**并行 subagent** 处理（同一条消息里多个 Agent 调用）
-- [ ] **优先 plugin 顺序正确**：`sdd → fe-sdd → quality-kit → java-dev-kit → devops-workflow` 中有改动的已按此顺序排在最前
+- [ ] **优先 plugin 顺序正确**：`sdd → quality-kit → java-dev-kit → devops-workflow` 中有改动的已按此顺序排在最前
 - [ ] **每个 emoji 在整份周报里最多出现一次**，语义相近的已改用同类不同变体
 - [ ] **维度标签字数参差**，不是整齐的四字/六字排比
 - [ ] 「重塑/重构/贯通/收敛/治理/闭环/体系化」在整份周报里不超过 1-2 处
