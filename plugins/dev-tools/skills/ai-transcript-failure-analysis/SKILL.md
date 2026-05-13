@@ -24,57 +24,21 @@ Do not use this skill to blame people or agents. The unit of analysis is the rep
    python3 /path/to/ai-transcript-failure-analysis/scripts/scan_transcripts.py <root> [<root> ...]
    ```
 
-3. Manually validate every candidate with the evidence-chain standard.
-   - Walk the full candidate list. For each one, read its `first_user_message` and `hits` summary, then drill into the raw transcript for any candidate whose user intent is not unambiguously a decision from the summary alone. The `score` is a hit-density indicator, not a priority — sort by it for convenience, but do not truncate by it.
-   - The scanner output is a coarse filter only. It reports **hint locations**, not labels. Do not treat `strong-vocab-hit:7` as "7 strong corrections"—a vocab hit just means a user message contained a word from the watch list near an agent action.
-   - For each candidate, run the **decision vs steer test** (single core question, see `references/failure-criteria.md` → Decision vs Steer):
-     > Can adding or improving repo feedforward / feedback meaningfully reduce the same kind of intervention from happening again, **with net-positive effect on the repo**?
-     - Yes → steer, keep going. No → decision, drop the candidate.
-     - Do not match on user wording. The same phrase ("先别猜先加日志", "你又改错了", "UT 写得不好") can be decision or steer depending on whether a useful, non-over-reaching repo harness exists for it.
-     - Working-mode preferences for this task ("先 observe", "先讨论方案", "dry-run") are decisions, not steer — encoding them into `AGENTS.md` would replace the user's per-task judgment.
-     - A first-time taste call that recurs across many sessions can be reclassified as steer at aggregation time (step 6) — judge in isolation first, then re-check after grouping.
-   - Confirm original user intent (read raw excerpts; ignore scanner labels).
-   - Confirm the agent took an evaluable action.
-   - Confirm a steer, rollback, repeated instruction, failure loop, or costly detour happened after that action.
-   - For verification loops, separate invalid repeated attempts, diagnostic probes, code fixes, and final validation.
-
-   **When candidate excerpts are not enough, re-query the raw transcript.** The candidate JSON only carries truncated snippets; the moment you cannot tell decision-vs-steer from the snippet alone, go back to the source. Common triggers:
-   - The hit text looks like pasted skill content / docs / spec rather than the user's own words (e.g. `wrong` appears inside a `/explore` template). Read the surrounding messages to see who is speaking.
-   - A `similarity_hit` shows two near-duplicate user messages but no agent activity between them in the snippet. You need the actual messages in between to know whether the user repeated themselves or reacted to new agent output.
-   - A `shell_failure_hit` only shows the command line; you need the full stderr / stack trace, and the agent's reply afterward, to decide whether it was a real loop or a one-shot transient failure.
-   - A `git_revert` is reported but the snippet does not show what the agent actually edited before the revert.
-   - The `preceding_user_intent` is generic (e.g. `继续`, `ok`); you must walk backward to find the real instruction that started this episode.
-   - Multi-turn causal chains (3+ messages spanning user → agent → tool → user) where the candidate only previews two ends.
-
-   **How to locate the line.** Every hit in the candidate carries a line/index pointer (`line`, `first_line`, `second_line`, `preceding_action_line`). The `path` is relative to the scan root. For Cursor `store.db`, the line is a virtual index over the deduplicated message stream produced by the scanner—use the `show` subcommand (below) rather than reading the SQLite file directly.
-
-   **How to read the raw transcript.**
-   - `*.jsonl` (Claude Code, Cursor JSONL exports): use the standard `Read` tool with the `path` and an `offset` near the hit line. Each line is one event; reading a window of ±10 lines around the hit usually covers the local turn.
-   - `store.db` (Cursor SQLite): use the bundled `show` subcommand to print a re-rendered window of messages with envelope tags stripped and tool-calls compacted:
+3. Validate every candidate against the evidence chain.
+   - Walk the full list. The scanner emits **hint locations, not labels** — `strong-vocab-hit:7` means "7 watch-list words landed near an agent action", not "7 corrections". `score` is hit density; sort by it, do not truncate by it.
+   - For each candidate, apply the decision-vs-steer test from `references/failure-criteria.md` → Decision vs Steer. Then confirm: (a) original user intent, (b) an evaluable agent action, (c) a steer / rollback / repeat / loop / costly detour after that action. For verification loops, separate invalid repeated attempts, diagnostic probes, code fixes, and final validation.
+   - **Go back to the raw transcript whenever the snippet is not enough.** Common triggers: hit text looks like pasted skill/doc content rather than user words; a `similarity_hit` with no agent turn shown between the two messages; a `shell_failure_hit` without the stderr / agent reply; a `git_revert` without the preceding edits; a generic `preceding_user_intent` ("继续", "ok"); multi-turn causal chains the snippet only previews at the ends.
+   - **Locating and reading the source.** Every hit carries a `path` (relative to scan root) and a line/index pointer. For `*.jsonl` use `Read` at that offset (±10 lines). For Cursor `store.db` the line is a virtual index — use the bundled `show` subcommand, do not read the SQLite directly:
 
      ```bash
-     python3 /path/to/ai-transcript-failure-analysis/scripts/scan_transcripts.py show \
-         <relative_or_absolute_path_to_store.db> \
-         --line <hit_line> --context 5
+     python3 /path/to/scripts/scan_transcripts.py show <path> --line <n> --context 5
      ```
 
-     The output shows `[line=N, role=...]` headers, real user text after envelope stripping, and `→ tool_use` / `← tool_result` summaries for assistant turns. Use `--context 10` or larger when the relevant chain spans more turns.
+     Run `scan_transcripts.py show --help` for flags.
 
-4. Apply the repo Harness gate.
-   - Count the candidate only if it can map to at least one of the three repo-improvable categories (full list in `references/failure-criteria.md`):
-     - **Feedforward**: knowledge that should be available before action — `AGENTS.md`, rules, skills, docs, SDD/spec, examples, architecture boundary notes, command/SOP references.
-     - **Feedback**: signals that fire during or after action — tests (unit/integration/browser), fixtures, lint, custom lint, architecture checks, AI review prompts, CI/local checks, read-only probes.
-     - **Harnessability**: the repo itself — structure, naming consistency, module boundaries, fast test targets, stable build entrypoints, clear code patterns.
-   - The artifact form (docs / command template / wrapper script / CI check / lint / fixture) is an implementation choice for the team that will fix the gap, not a separate category. Classify by what is missing (knowledge / signal / structure).
-   - Exclude one-off human decisions, new business choices, changed requirements, working-mode preferences, personal taste calls, external incidents, and anything whose harness would be over-reach (encoding it into `AGENTS.md` / docs / lint would constrain unrelated tasks more than it would help).
+4. Apply the repo Harness gate. Count the candidate only if a repo change (knowledge / signal / structure) could meaningfully reduce recurrence with net-positive effect. Full criteria and exclusions in `references/failure-criteria.md` → Repo Harness Gate. Classify by what is missing, not by the artifact that would fix it.
 
-5. Classify the repo Harness gap by root cause, not by user wording.
-   - Ask one more "why" before assigning a category: the user's complaint tells you a steer happened, not why it happened. The same surface complaint (e.g. "stop guessing, look at the logs") can come from missing knowledge, missing probe, or unclear structure. See `references/failure-criteria.md` → Root Cause Analysis.
-   - If a single complaint splits across multiple root causes, do not blend them into one pattern; report each root cause as its own pattern.
-   - Subtype within each category (full list in `references/failure-criteria.md` → Repo Harness Gap Types):
-     - Feedforward: missing or stale repo context · missing intent/scope feedforward · missing architecture / module-boundary documentation · missing output / style guide
-     - Feedback: missing verification/test harness · missing cheap probe · missing enforcement check
-     - Harnessability: low repo harnessability (inconsistent patterns, slow tests, unclear structure, weak implicit feedforward)
+5. Classify by root cause, not by user wording. Ask one more "why" before picking a category — the same surface complaint can come from missing knowledge, missing probe, or unclear structure. If one complaint splits across multiple root causes, report each as its own pattern. Categories and subtypes in `references/failure-criteria.md` → Root Cause Analysis and Repo Harness Gap Types.
 
 6. Aggregate by repeated repo Harness gap, not by isolated transcript.
    - Prefer "same steer repeated across sessions/users/projects" over one-off anecdotes.
