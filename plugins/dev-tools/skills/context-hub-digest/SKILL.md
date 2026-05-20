@@ -23,13 +23,7 @@ target_root: plugins
 - 仓库：`/Users/taowei/code/context-hub`，目标 `plugins/` 下所有子目录
 - **数据源锁定**：全程只看 `origin/master`（git log / git diff / `git show origin/master:<path>`）。**不 Read 本地文件**，不用 `--all`，不用裸 `git log`，不用 `ls plugins/`——本地工作区、feature 分支、未追踪目录都可能与 origin 不一致
 - 时间窗口：`$ARGUMENTS` 里解析时间短语为 `SINCE`/`END`（`YYYY-MM-DD`），默认 "过去 7 天"（`SINCE=今天-7d, END=今天-1d`，例：今天 29 号 → 22 ~ 28）。**`END` 始终 ≤ 今天-1d**；标题/招呼里的时段词与窗口一致；解析不明先追问
-- **Plugin 黑名单**（不分析、不汇总、不进 💤，枚举后直接剔除）：
-  ```
-  cn-backend-workflow, docx-operator, fe-b-react-dev-kit, fe-b-vue2-dev-kit,
-  fe-b-vue3-dev-kit, fe-c-dev-kit, fe-d2c, fe-plugin-report, fe-sdd,
-  fe-workflow, jar-inspect, project-plugin-check, sea-backend-workflow,
-  sea-risk, test-kit, wecom-doc-general, wecom-meeting-report
-  ```
+- **Plugin 黑名单**：枚举后直接剔除，不分析、不汇总、不进 💤。完整名单见 Step 1 的 `BLACKLIST` 正则
 
 ## 调研步骤
 
