@@ -27,8 +27,8 @@ target_root: plugins
   ```
   cn-backend-workflow, docx-operator, fe-b-react-dev-kit, fe-b-vue2-dev-kit,
   fe-b-vue3-dev-kit, fe-c-dev-kit, fe-d2c, fe-plugin-report, fe-sdd,
-  jar-inspect, project-plugin-check, sea-backend-workflow, sea-risk,
-  test-kit, wecom-doc-general, wecom-meeting-report
+  fe-workflow, jar-inspect, project-plugin-check, sea-backend-workflow,
+  sea-risk, test-kit, wecom-doc-general, wecom-meeting-report
   ```
 
 ## 调研步骤
@@ -40,7 +40,7 @@ cd /Users/taowei/code/context-hub && git fetch origin master
 
 # 从 origin/master tree 枚举所有 plugin（本地未推送的目录会被自动排除）
 # 并剔除黑名单
-BLACKLIST='^(cn-backend-workflow|docx-operator|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|fe-sdd|jar-inspect|project-plugin-check|sea-backend-workflow|sea-risk|test-kit|wecom-doc-general|wecom-meeting-report)$'
+BLACKLIST='^(cn-backend-workflow|docx-operator|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|fe-sdd|fe-workflow|jar-inspect|project-plugin-check|sea-backend-workflow|sea-risk|test-kit|wecom-doc-general|wecom-meeting-report)$'
 git ls-tree -d --name-only origin/master plugins/ | sed 's|^plugins/||' | grep -Ev "$BLACKLIST"
 
 # 按解析出的 SINCE / END，拉 origin/master 上本窗口内的 commit 列表
