@@ -21,19 +21,15 @@ description: This skill should be used when the user asks to "pull and rebase", 
 ```bash
 git branch --show-current
 git status --porcelain
-git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "NO_UPSTREAM"
 git rev-parse --git-dir
 ```
 
 判定：
 - **current branch**：当前分支名
 - **is worktree**：`git rev-parse --git-dir` 输出包含 `worktrees/` → 是 worktree 会话
-- **has upstream**：上一行不是 `NO_UPSTREAM` → 已设置 upstream
 - **is dirty**：`git status --porcelain` 非空 → 工作区不干净，先停下来确认
 
-**如果没有 upstream**：
-
-upstream 目标**只会是远端默认分支**（`origin/main` 或 `origin/master`），不要去匹配同名远端分支。
+**确定 rebase 目标**（始终为远端默认分支，忽略已有 upstream 设置）：
 
 ```bash
 # 优先用 symbolic-ref 拿默认分支
@@ -42,50 +38,44 @@ git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null
 git branch -r | grep -E 'origin/(main|master)$'
 ```
 
-按结果挑出 `origin/main` 或 `origin/master`，然后：
-
-```bash
-git branch --set-upstream-to=origin/<main-or-master> <current-branch>
-```
-
-两个都不存在（极少见）时停下来问用户。
+按结果挑出 `origin/main` 或 `origin/master`，记为 `<target>`。两个都不存在（极少见）时停下来问用户。
 
 ### Step 2: 预读两侧增量（为冲突解决做准备）
 
 先 fetch 再对比，**不要**直接 pull：
 
 ```bash
-git fetch <remote>
+git fetch origin
 ```
 
-然后并行执行以下 3 组命令，把本地与远端的增量都摸清：
+然后并行执行以下 3 组命令，把本地与远端的增量都摸清（以下 `<target>` 即 Step 1 确定的远端默认分支，如 `origin/main`）：
 
 ```bash
 # 本地领先远端的 commits（我自己做了什么）
-git log @{u}..HEAD --oneline
-git diff @{u}..HEAD --stat
+git log <target>..HEAD --oneline
+git diff <target>..HEAD --stat
 
 # 远端领先本地的 commits（远端增量）
-git log HEAD..@{u} --oneline
-git diff HEAD..@{u} --stat
+git log HEAD..<target> --oneline
+git diff HEAD..<target> --stat
 
 # 两侧都改过的文件（最可能产生冲突的地方）
-git diff @{u}..HEAD --name-only | sort > /tmp/local_changed.txt
-git diff HEAD..@{u} --name-only | sort > /tmp/remote_changed.txt
+git diff <target>..HEAD --name-only | sort > /tmp/local_changed.txt
+git diff HEAD..<target> --name-only | sort > /tmp/remote_changed.txt
 comm -12 /tmp/local_changed.txt /tmp/remote_changed.txt
 ```
 
 **判断**：
-- 若 `HEAD..@{u}` 为空：远端无增量，直接跳到 Step 5 报告"已是最新"
-- 若 `@{u}..HEAD` 为空：本地无增量，rebase 退化为 fast-forward，风险最低
-- 若两边都非空，且交集文件列表非空：**高冲突风险**。对交集中的每个文件，读一下本地侧和远端侧的 diff 细节（`git diff @{u}..HEAD -- <file>` 与 `git diff HEAD..@{u} -- <file>`），心里对冲突位置有预期
+- 若 `HEAD..<target>` 为空：远端无增量，直接跳到 Step 5 报告"已是最新"
+- 若 `<target>..HEAD` 为空：本地无增量，rebase 退化为 fast-forward，风险最低
+- 若两边都非空，且交集文件列表非空：**高冲突风险**。对交集中的每个文件，读一下本地侧和远端侧的 diff 细节（`git diff <target>..HEAD -- <file>` 与 `git diff HEAD..<target> -- <file>`），心里对冲突位置有预期
 
 这一步的目的不是生成报告，是**让自己在冲突发生前就知道该怎么合**。
 
 ### Step 3: 执行 Rebase
 
 ```bash
-git pull --rebase
+git rebase <target>
 ```
 
 ### Step 4: 冲突处理
@@ -142,7 +132,7 @@ git log --oneline -n 10
 - `rebase 完成，解决 M 个冲突文件`（有冲突）
 
 **只在以下情况追加信息**：
-- 新设了 upstream：加一句 `upstream 设为 origin/<branch>`
+- rebase 目标非 `origin/main`（如 `origin/master`）：标注实际 rebase 目标
 - 有冲突：列冲突文件名
 - 有跟进 commit：附 hash
 - 用户明确要求详情：再给完整 `git log --oneline -n 3`
@@ -152,7 +142,7 @@ git log --oneline -n 10
 ## Error Handling
 
 - **工作区不干净**：停下来报告未提交文件，问用户是 stash 还是先 commit
-- **upstream 推断不出**（同名远端不存在、无默认分支）：列出 `git branch -r`，让用户指定
+- **默认分支推断不出**（`origin/main` 和 `origin/master` 都不存在）：列出 `git branch -r`，让用户指定 rebase 目标
 - **fetch 失败**（网络/权限）：停下来报告，不要继续
 - **rebase 冲突卡住**（同一文件反复冲突、二进制文件冲突、大量重命名）：停下来，报告当前状态，让用户决定是 `--abort` 还是人工介入
 - **pre-commit / CI hook 本地失败**：跟进 commit 阶段若 hook 失败，**修复根因**再重新 commit，不要 `--no-verify`
