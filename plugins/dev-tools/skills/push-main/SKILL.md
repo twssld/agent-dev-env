@@ -43,21 +43,36 @@ Determine:
 **If in a worktree session** (created by `EnterWorktree`):
 - Invoke `ExitWorktree(action="remove", discard_changes=true)`
 - Safe because the commit has already been pushed/merged to remote main.
+- After exiting, the session returns to the main repository (typically on the default branch).
 
 **If on a regular local branch** (not a worktree):
 - Switch back to main: `git checkout main`
-- Pull latest: `git pull origin main`
 - Delete the local branch: `git branch -D <branch-name>`
 
-### Step 4: Report Result
+In both cases, sync the local default branch in Step 4 below.
+
+### Step 4: Sync Local Default Branch
+
+After cleanup the session is on the local default branch (`main` or `master`), which now lags remote by exactly the commit just pushed/merged. Pull it down with rebase, matching the `pull-rebase` skill's strategy:
+
+```bash
+git pull --rebase
+```
+
+- Since the local default branch has no commits ahead of remote, this is a clean fast-forward — no conflicts expected.
+- If `git pull --rebase` fails (e.g. unexpected divergence, no upstream), report it but do NOT force anything; the push/merge already succeeded, so this is a non-fatal follow-up.
+
+### Step 5: Report Result
 
 Confirm:
 - Whether the action was a **direct push** or **PR merge**
 - The commit hash
 - That the branch/worktree was cleaned up
+- That the local default branch was synced (or note if the sync was skipped/failed)
 
 ## Error Handling
 
 - If push fails due to branch protection or non-fast-forward, suggest creating a PR instead.
 - If PR merge fails (CI not passed, review required), report the blocker.
 - If `ExitWorktree` fails, suggest manual cleanup with `git worktree remove`.
+- If the Step 4 `git pull --rebase` fails, report it as a non-fatal follow-up — the push/merge already succeeded; do NOT force-push or reset.
