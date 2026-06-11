@@ -51,20 +51,9 @@ Determine:
 - Switch back to main: `git checkout main`
 - Delete the local branch: `git branch -D <branch-name>`
 
-In both cases, sync the local default branch in Step 4 below.
+In both cases, proceed to delete the remote branch in Step 4 below.
 
-### Step 4: Sync Local Default Branch
-
-After cleanup the session is on the local default branch (`main` or `master`), which now lags remote by exactly the commit just pushed/merged. Pull it down with rebase, matching the `pull-rebase` skill's strategy:
-
-```bash
-git pull --rebase
-```
-
-- Since the local default branch has no commits ahead of remote, this is a clean fast-forward — no conflicts expected.
-- If `git pull --rebase` fails (e.g. unexpected divergence, no upstream), report it but do NOT force anything; the push/merge already succeeded, so this is a non-fatal follow-up.
-
-### Step 5: Delete the Remote Branch
+### Step 4: Delete the Remote Branch
 
 If the current branch (not `main`) exists on the remote, delete it:
 
@@ -75,6 +64,17 @@ git push origin --delete <current-branch>
 - Only deletes the branch that was just pushed/merged — does NOT scan or delete other branches.
 - Skip this step if the branch was already deleted by `gh pr merge --delete-branch`.
 - If the delete fails (e.g. branch doesn't exist on remote, or is protected), log it and continue — the push/merge already succeeded.
+
+### Step 5: Sync Local Default Branch
+
+After cleanup the session is on the local default branch (`main` or `master`), which now lags remote by exactly the commit just pushed/merged. Pull it down with rebase, matching the `pull-rebase` skill's strategy:
+
+```bash
+git pull --rebase
+```
+
+- Since the local default branch has no commits ahead of remote, this is a clean fast-forward — no conflicts expected.
+- If `git pull --rebase` fails (e.g. unexpected divergence, no upstream), report it but do NOT force anything; the push/merge already succeeded, so this is a non-fatal follow-up.
 
 ### Step 6: Report Result
 
@@ -90,4 +90,4 @@ Confirm:
 - If push fails due to branch protection or non-fast-forward, suggest creating a PR instead.
 - If PR merge fails even with `--admin` (e.g. CI required by ruleset, merge conflict), report the blocker.
 - If `ExitWorktree` fails, suggest manual cleanup with `git worktree remove`.
-- If the Step 4 `git pull --rebase` fails, report it as a non-fatal follow-up — the push/merge already succeeded; do NOT force-push or reset.
+- If the Step 5 `git pull --rebase` fails, report it as a non-fatal follow-up — the push/merge already succeeded; do NOT force-push or reset.
