@@ -67,7 +67,7 @@ git push origin --delete <current-branch>
 
 ### Step 5: Sync Local Default Branch
 
-After cleanup the session is on the local default branch (`main` or `master`), which now lags remote by exactly the commit just pushed/merged. Pull it down with rebase, matching the `pull-rebase` skill's strategy:
+After cleanup the session is on the local default branch (`main` or `master`), which now lags remote by exactly the commit just pushed/merged. Pull it down:
 
 ```bash
 git pull --rebase
