@@ -64,13 +64,26 @@ git pull --rebase
 - Since the local default branch has no commits ahead of remote, this is a clean fast-forward — no conflicts expected.
 - If `git pull --rebase` fails (e.g. unexpected divergence, no upstream), report it but do NOT force anything; the push/merge already succeeded, so this is a non-fatal follow-up.
 
-### Step 5: Report Result
+### Step 5: Delete the Remote Branch
+
+If the current branch (not `main`) exists on the remote, delete it:
+
+```bash
+git push origin --delete <current-branch>
+```
+
+- Only deletes the branch that was just pushed/merged — does NOT scan or delete other branches.
+- Skip this step if the branch was already deleted by `gh pr merge --delete-branch`.
+- If the delete fails (e.g. branch doesn't exist on remote, or is protected), log it and continue — the push/merge already succeeded.
+
+### Step 6: Report Result
 
 Confirm:
 - Whether the action was a **direct push** or **PR merge**
 - The commit hash
 - That the branch/worktree was cleaned up
 - That the local default branch was synced (or note if the sync was skipped/failed)
+- That the remote branch was deleted (or skipped/failed)
 
 ## Error Handling
 
