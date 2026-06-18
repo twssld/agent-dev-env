@@ -21,14 +21,19 @@ Run in parallel:
 git branch --show-current
 git rev-parse --abbrev-ref HEAD
 gh pr list --head <current-branch> --state open --json number,url --limit 1
+gh pr list --head <current-branch> --state merged --json number,url --limit 1
 ```
 
 Determine:
 - **current branch**: the branch name
 - **is worktree**: whether the session is inside a worktree (branch name starts with `worktree-` or differs from `main`)
-- **has open PR**: whether a PR exists for this branch
+- **has open PR**: whether an open PR exists for this branch
+- **already merged**: whether a merged PR exists for this branch
 
 ### Step 2: Merge or Push
+
+**If the PR is already merged** (found in Step 1):
+- Skip to Step 3 directly — nothing to push or merge.
 
 **If an open PR exists** for the current branch:
 
@@ -44,7 +49,7 @@ Determine:
    - If `APPROVED`: `gh pr merge <number> --squash --delete-branch --body "<body>"`
    - If not approved: `gh pr merge <number> --squash --delete-branch --admin --body "<body>"`
 
-**If no open PR exists:**
+**If no PR exists (open or merged):**
 - Push directly: `git push origin <current-branch>:main`
 - If the push is rejected (non-fast-forward or branch protection), stop and report the error. Do NOT force-push.
 
@@ -70,7 +75,7 @@ git push origin --delete <current-branch>
 ```
 
 - Only deletes the branch that was just pushed/merged — does NOT scan or delete other branches.
-- Skip this step if the branch was already deleted by `gh pr merge --delete-branch`.
+- Skip this step only if `gh pr merge --delete-branch` was just executed (it deletes the branch atomically). Do NOT skip for already-merged PRs — those branches may still exist on the remote.
 - If the delete fails (e.g. branch doesn't exist on remote, or is protected), log it and continue — the push/merge already succeeded.
 
 ### Step 5: Sync Local Default Branch
