@@ -32,9 +32,17 @@ Determine:
 
 **If an open PR exists** for the current branch:
 
-1. Check review status: `gh pr view <number> --json reviewDecision --jq .reviewDecision`
-2. If `APPROVED`: merge directly via `gh pr merge <number> --merge --delete-branch`
-3. If not approved (empty, `REVIEW_REQUIRED`, `CHANGES_REQUESTED`, etc.): use admin override via `gh pr merge <number> --merge --delete-branch --admin`
+1. Fetch the PR's title, commit messages, and review status in parallel:
+   ```bash
+   gh pr view <number> --json title,commits --jq '{title: .title, commits: [.commits[] | {headline: .messageHeadline, body: .messageBody}]}'
+   gh pr view <number> --json reviewDecision --jq .reviewDecision
+   ```
+2. Compose the squash body:
+   - If there is only one commit, use its body as-is
+   - If there are multiple commits, write 3–5 sentences synthesising *what* changed and *why* across all commits — do NOT paste the commit list verbatim
+3. Merge with the composed body:
+   - If `APPROVED`: `gh pr merge <number> --squash --delete-branch --body "<body>"`
+   - If not approved: `gh pr merge <number> --squash --delete-branch --admin --body "<body>"`
 
 **If no open PR exists:**
 - Push directly: `git push origin <current-branch>:main`
