@@ -48,7 +48,7 @@ git log origin/master --since="$SINCE" --until="$END 23:59:59" \
 
 ### Step 2：为每个"有改动"的 plugin 生成聚合 diff
 
-**核心原则：以 plugin 为维度汇总整个窗口的代码改动，不依赖单个 commit message 做总结。**
+**核心原则：以 plugin 为维度汇总整个窗口的代码改动，不依赖单个 commit message 做总结。**（此原则防的是"照抄单条 commit 标题当总结"；MR summary 是作者写的变更说明，可作为理解 diff 意图的辅助，见 Step 2.5。）
 
 ```bash
 # 窗口起点之前的最后一次 origin/master 提交，作为 BASE
@@ -63,11 +63,27 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 
 若 `--stat` 为空 → 该 plugin 本周无改动，直接归入 `💤`。
 
+### Step 2.5：拉取窗口内 MR summary
+
+MR description 是作者写的意图说明，比 diff 更快定位主线，拉取后按 plugin 分发给对应 subagent（主线判断仍以聚合 diff 为准）：
+
+```bash
+# 窗口内 merge commit 的 body 带 MR 标题与编号（!N）
+git log origin/master --merges --since="$SINCE" --until="$END 23:59:59" \
+  --pretty=format:"%h|%ad|%s|%b" --date=short
+
+# 有 glab 时按编号拉 MR 描述（含 Summary、reviewer 等）
+glab mr view <iid>
+```
+
+- 正文 bullet **不出现 MR 编号**
+- MR 一览（编号/合入时间/作者/summary 要点）仅在用户明确要求时作为附录输出，不进群聊正文
+
 ### Step 3：并行派发 subagent 做 plugin 级分析
 
 对"有改动"的 plugin，**同一条消息里并行发出多个 Agent 调用**（每个 plugin 一个 subagent）：
 
-- 每个 subagent 只看**自己那一个 plugin** 的 `--stat` 和 `diff`，**不看 commit message**
+- 每个 subagent 只看**自己那一个 plugin** 的 `--stat` 和 `diff`，**不看单条 commit message**；主 agent 把该 plugin 相关的 MR summary（Step 2.5）附进 prompt 作意图辅助
 - 基于**代码实际改动**提炼 2-4 条主线，每条要能回答"改的是哪个字段/文件/行为"
 - 输出固定结构：
 
@@ -88,7 +104,7 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 
 ### Step 4：主 agent 合成最终周报
 
-收集各 subagent 结果 → 按「输出骨架」拼装 → 过「自检清单」核对 → 未改动 plugin 合并到 `💤` 节。
+收集各 subagent 结果 → **按价值主题二次合并（红线 3）、逐条二次过克制原则** → 按「输出骨架」拼装 → 过「自检清单」核对 → 未改动 plugin 合并到 `💤` 节。subagent 给的条目不是照单全收：读者无感的删，同一价值主题的合并。
 
 ### 克制原则
 
@@ -142,7 +158,7 @@ sdd → quality-kit → java-dev-kit → devops-workflow
 
 ### sdd 特权
 
-sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bullet 数上限**——有多少值得讲的主线就写多少。克制原则仍然适用，但不为了压缩 bullet 数而合并掉真正独立的主线。
+sdd 是 context-hub 里最核心的 plugin，分析要最深入（全量 diff + 窗口内全部相关 MR summary），bullet 上限放宽到 **3-5 条**（其他 plugin 2-4 条）。深入是指分析深入，不是条数多——同样要按价值主题合并；但也不为了压缩条数而合并掉真正独立的主线。
 
 ### Emoji 选择池（按语义选，**同份周报内不重复**）
 
@@ -161,7 +177,7 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 
 ### Bullet 格式
 - `    • ` 开头（4 空格 + Unicode 中点 `•`），**不用 markdown `-`**
-- 数量 **2-4 条**（sdd 不设上限，见上），不硬凑
+- 数量 **2-4 条**（sdd 3-5 条，见上），不硬凑
 - 固定结构：`<维度标签>：<一句话>`
 - 每条 ≤ 50 中文字
 
@@ -187,6 +203,13 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 
 **判断法**：标签朗读出来像章节标题 → AI 味；像对话里会说的一句话 → 没问题。
 
+**3. 口语也有下限**
+
+像群聊吐槽而不是周报的标签不行。标签是自然的**书面短语**，介于章节标题和聊天口水话之间，且尽量点出主体（skill 名或功能域名词）。
+
+- ❌ 口水话：「界面还要比设计稿」「删页残链清理方式变了」「不许虚报通过」
+- ✅ 书面短语：「设计稿还原度检测」「断连场景防误报」「repair 改为按层路由」
+
 ### Bullet 描述（红线）
 
 #### 🔴 红线 1：禁空心描述
@@ -207,6 +230,8 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 判断："这些变化对下游呈现为同一个接口变化吗？" 是 → 合并。
 
 典型：code-reviewer 的 diff 生成修复 + `agent → topic` 字段对齐 + 脚本更新 → 全部属于"结果产出链路"一个功能域，**必须合并到一条 bullet**，不要把字段对齐拆到"执行流程加固"。
+
+合并还有更高一层判断：**同一价值主题**——多个变化服务于同一个大机制/目标时，合并为一条，配套调整不单列。例：verify 新增 + implement-loop 新增 + 跨 Phase 门禁编排调整，都属于"交付验证流水线"一个主题，门禁编排作为流水线的一环并入，不单占 bullet。又如：plan 模板瘦身 + specify 澄清收紧，同属"产物质量"，视条数压力可合并。
 
 #### 🔴 红线 4：只写"本周新增的变化"，不写既有能力
 读者默认已经知道每个 skill 本来能做什么。bullet 只能描述**这周 diff 里真实发生的增量动作**（新增、删除、改名、迁移、约束变化），**不要**把"既有设计"当成本周变化写。
@@ -240,6 +265,15 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 
 迁出 / 合并 / 拆分类变化**只写一条最顶层的事实**即可（例："从 utilities 迁出为独立 plugin"），不追加"同步更新 mcp 清单"这种镜像细节。
 
+#### 🔴 红线 7：写意义，不写编排机制
+
+描述优先回答"这对使用 plugin 的人意味着什么"，而不是内部编排怎么动。尤其是合并后的大主题：描述 = 共同意义 + 1-2 个最有感知的具体动作；调度/编排细节不进正文。
+
+- ❌ 机制：「新增 verify 与 implement-loop，跨 Phase 门禁合并编排」
+- ✅ 意义：「新增 verify 与 implement-loop，实现完由独立视角验证、循环修复后再交付」
+
+注意与红线 1 的平衡：写意义不等于写空话，仍要落到具体的 skill 名/文件/行为上。
+
 ### 允许出现的证据
 - skill 名（`clarify`、`tasks`）
 - 关键字段名（`integrates`、`topic`、`agent`）
@@ -262,7 +296,7 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 **不写**"一句话总结"/"行为变化提醒"/"影响的 skill 清单"/飞书文档链接。
 
 ### 全局禁项
-- ❌ commit hash、commit 标题原文翻译
+- ❌ commit hash、MR/PR 编号（`!96` 这类）、commit 标题原文翻译
 - ❌ 函数名、git 内部术语、命令行参数、正则
 - ❌ `▎` 收尾行、`---` 分隔线、`**一句话总结**`、飞书文档链接
 - ❌ 次级增强项（按克制原则）
@@ -287,11 +321,13 @@ sdd 是 context-hub 里最核心的 plugin，需要深入分析，**不设 bulle
 - [ ] Plugin 列表通过 `git ls-tree origin/master plugins/` 从 git tree 枚举（不是 `ls plugins/`），并已用黑名单过滤
 - [ ] 黑名单 plugin 在整份周报里完全未出现（不分析、不进 💤、不被提及）
 - [ ] 时间窗口按 `$ARGUMENTS` 解析（默认过去 7 天；`END` ≤ 今天-1d），标题/打招呼时段词与 `SINCE~END` 一致
-- [ ] 主线判断基于**聚合 diff 的实际代码改动**，不依赖 commit message
+- [ ] 主线判断基于**聚合 diff 的实际代码改动**，MR summary 仅作意图辅助（Step 2.5），不照抄 commit message
 - [ ] 多个 plugin 的分析通过**并行 subagent** 处理（同一条消息里多个 Agent 调用）
+- [ ] 合成时已按**价值主题**二次合并、逐条二次过克制原则，读者无感的条目已删
+- [ ] 正文 bullet 无 MR/PR 编号；MR 一览仅在用户要求时作附录
 - [ ] **优先 plugin 顺序正确**：`sdd → quality-kit → java-dev-kit → devops-workflow` 中有改动的已按此顺序排在最前
 - [ ] **每个 emoji 在整份周报里最多出现一次**，语义相近的已改用同类不同变体
-- [ ] **维度标签字数参差**，不是整齐的四字/六字排比
+- [ ] **维度标签字数参差**，不是整齐的四字/六字排比，也没有群聊吐槽式口语标签
 - [ ] 「重塑/重构/贯通/收敛/治理/闭环/体系化」在整份周报里不超过 1-2 处
 - [ ] 字段对齐/展示变更已并入其所属功能域 bullet（红线 3）
 - [ ] 无"对读者无感"的打包/发行/镜像细节（红线 6）
