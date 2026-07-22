@@ -48,7 +48,15 @@ git log origin/master --since="$SINCE" --until="$END 23:59:59" \
 
 ### Step 2：为每个"有改动"的 plugin 生成聚合 diff
 
-**核心原则：以 plugin 为维度汇总整个窗口的代码改动，不依赖单个 commit message 做总结。**（此原则防的是"照抄单条 commit 标题当总结"；MR summary 是作者写的变更说明，可作为理解 diff 意图的辅助，见 Step 2.5。）
+**核心原则：以 plugin 为维度汇总整个窗口的代码改动，不依赖单个 commit message 做总结。**（此原则防的是"照抄单条 commit 标题当总结"。）
+
+**WHAT 看 diff，WHY 看 MR 正文——分清事实层与重点层：**
+
+- **事实层（WHAT，到底改没改、改成什么样）以 diff 为准**。这是"以代码为准"的真正含义——防的是 MR summary 过时（作者改了代码却没更新描述）而吹牛或漏说。
+- **重点层（WHY，这次改动的主线/初衷是什么）以 MR 正文为准**。diff 只能告诉你哪些行变了，**提炼不出重点**；一组变化服务于什么目标、哪个是主线、哪个是附带动作，只有作者写在 MR 正文里的初衷说得清。**不要从机械 diff 里硬凑主线**——那正是把附带动作（如某个枚举值被删）误当主线的根源。
+- **冲突时**：MR 正文说了某改动但 diff 里查无此事 → 信 diff（summary 过时，不写）；diff 里有改动但 MR 正文没提 → 作为补充事实核实清楚，但**不擅自升格为主线**，除非它本身就是一条独立的用户可感价值。
+
+> 反面实例（真实教训）：某次 sketch 的测试层从 `UT|API|UI/E2E` 收成 `UT|API|E2E`，diff 里"删掉 UI"很显眼，于是被当成主线写「测试层砍掉 UI」。但 MR 正文的初衷是"不同模型对是否写 API/E2E 不稳定，**加强 sketch 测试层约束**"——砍 UI 只是收紧口径的附带动作。**diff 给了 WHAT，MR 正文才给了 WHY**；只看 diff 必然抓错重点。
 
 ```bash
 # 窗口起点之前的最后一次 origin/master 提交，作为 BASE
@@ -63,19 +71,39 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 
 若 `--stat` 为空 → 该 plugin 本周无改动，直接归入 `💤`。
 
-### Step 2.5：拉取窗口内 MR summary
+### Step 2.5：拉全每个 plugin 的 MR 正文（硬步骤，主线来源）
 
-MR description 是作者写的意图说明，比 diff 更快定位主线，拉取后按 plugin 分发给对应 subagent（主线判断仍以聚合 diff 为准）：
+MR 正文是作者写的**初衷说明**，是重点层（WHY）的来源。**这一步不是可选辅助**——每个有改动的 plugin，都必须先把窗口内动过它的所有 MR 正文拉全，再喂给对应 subagent，否则 subagent 只能从 diff 硬凑、必然抓错重点。
+
+**① 列出窗口内所有 merge commit（拿到 MR 编号）：**
 
 ```bash
-# 窗口内 merge commit 的 body 带 MR 标题与编号（!N）
 git log origin/master --merges --since="$SINCE" --until="$END 23:59:59" \
   --pretty=format:"%h|%ad|%s|%b" --date=short
+```
 
-# 有 glab 时按编号拉 MR 描述（含 Summary、reviewer 等）
+**② 把每个 plugin 的改动追到具体 MR（commit → MR 映射）：**
+
+merge commit 本身不改文件，直接按路径过滤 `--merges` 追不到。正确做法是先找出窗口内**直接改了该 plugin 文件的非 merge commit**，再把每个 commit 映射到包含它的那个 merge：
+
+```bash
+# 该 plugin 窗口内的非 merge commit
+git log origin/master --no-merges --since="$SINCE" --until="$END 23:59:59" \
+  --pretty=format:"%h %s" -- plugins/<name>
+
+# 每个 commit <c> 属于哪个 MR（取第一个 merge，其 body 含 "See merge request ai/context-hub!<iid>"）
+git log origin/master --merges --ancestry-path <c>..origin/master \
+  --pretty=format:"%h %s%n  %b" --reverse | head -3
+```
+
+**③ 按编号拉全 MR 正文（含初衷、主要改动说明）：**
+
+```bash
 glab mr view <iid>
 ```
 
+- **拉正文时读的是 `glab mr view` 的 description，不是 merge commit 的一行标题**。标题只够定位，初衷全在正文里。
+- **搭便车 commit**：某 plugin 的改动若合在别的主题分支/MR 里（例：某脚手架改动搭在另一个 SSO 文档 MR 里合入），没有属于自己的 MR 正文 → 回退纯 diff 分析，据 diff 实际改动老实描述，不硬套那个无关 MR 的初衷。
 - 正文 bullet **不出现 MR 编号**
 - MR 一览（编号/合入时间/作者/summary 要点）仅在用户明确要求时作为附录输出，不进群聊正文
 
@@ -83,8 +111,8 @@ glab mr view <iid>
 
 对"有改动"的 plugin，**同一条消息里并行发出多个 Agent 调用**（每个 plugin 一个 subagent）：
 
-- 每个 subagent 只看**自己那一个 plugin** 的 `--stat` 和 `diff`，**不看单条 commit message**；主 agent 把该 plugin 相关的 MR summary（Step 2.5）附进 prompt 作意图辅助
-- 基于**代码实际改动**提炼 2-4 条主线，每条要能回答"改的是哪个字段/文件/行为"
+- 每个 subagent 拿到**自己那一个 plugin** 的两份输入：`--stat`+`diff`（事实层 WHAT），以及 Step 2.5 拉全的该 plugin **MR 正文**（重点层 WHY）。**主线来自 MR 正文的初衷，diff 用来核实事实和补细节**——按 Step 2 的 WHAT/WHY 分层办
+- 提炼 2-4 条主线，每条要能回答"改的是哪个字段/文件/行为"，且主线是 MR 正文点明的目标，不是 diff 里最显眼的机械改动
 - 输出固定结构：
 
   ```
@@ -274,6 +302,15 @@ sdd 是 context-hub 里最核心的 plugin，分析要最深入（全量 diff + 
 
 注意与红线 1 的平衡：写意义不等于写空话，仍要落到具体的 skill 名/文件/行为上。
 
+#### 🔴 红线 8：禁内部校验/安全/门禁机制当用户价值
+
+dry-run 试跑、二次确认、清单预览、权限/时效校验、幂等补齐这类**内部门禁与安全机制**，对读者是"看不见的底层保障"，默认不占 bullet。只有当它**直接改变了用户的操作步骤**（例：以前一步完成、现在必须先确认再执行）时才值得一提，且并进它所服务的功能主题，不单列。
+
+自检法：问"这条讲的是这个功能**能干什么**，还是它**内部怎么自我保护**？"是后者 → 删或并入。
+
+- ❌ 内部机制：「落库前都要 dry-run 真跑验证」「批量操作加二次确认护栏」「逾期罚息改为幂等补齐」
+- ✅ 用户价值：「新增三个运维 harness：建 agent、写告警 SOP、管巡检」（验证/确认机制不单写）
+
 ### 允许出现的证据
 - skill 名（`clarify`、`tasks`）
 - 关键字段名（`integrates`、`topic`、`agent`）
@@ -321,7 +358,8 @@ sdd 是 context-hub 里最核心的 plugin，分析要最深入（全量 diff + 
 - [ ] Plugin 列表通过 `git ls-tree origin/master plugins/` 从 git tree 枚举（不是 `ls plugins/`），并已用黑名单过滤
 - [ ] 黑名单 plugin 在整份周报里完全未出现（不分析、不进 💤、不被提及）
 - [ ] 时间窗口按 `$ARGUMENTS` 解析（默认过去 7 天；`END` ≤ 今天-1d），标题/打招呼时段词与 `SINCE~END` 一致
-- [ ] 主线判断基于**聚合 diff 的实际代码改动**，MR summary 仅作意图辅助（Step 2.5），不照抄 commit message
+- [ ] **每个有改动 plugin 的 MR 正文已用 `glab mr view` 拉全**（不是只看 merge commit 标题），并作为对应 subagent 的输入
+- [ ] **主线（WHY）来自 MR 正文的初衷，事实（WHAT）以 diff 为准**；没把 diff 里最显眼的机械改动（如删枚举值）误当主线；搭便车、无独立 MR 正文的改动已回退纯 diff 分析
 - [ ] 多个 plugin 的分析通过**并行 subagent** 处理（同一条消息里多个 Agent 调用）
 - [ ] 合成时已按**价值主题**二次合并、逐条二次过克制原则，读者无感的条目已删
 - [ ] 正文 bullet 无 MR/PR 编号；MR 一览仅在用户要求时作附录
@@ -331,3 +369,4 @@ sdd 是 context-hub 里最核心的 plugin，分析要最深入（全量 diff + 
 - [ ] 「重塑/重构/贯通/收敛/治理/闭环/体系化」在整份周报里不超过 1-2 处
 - [ ] 字段对齐/展示变更已并入其所属功能域 bullet（红线 3）
 - [ ] 无"对读者无感"的打包/发行/镜像细节（红线 6）
+- [ ] 无 dry-run/二次确认/权限校验等内部门禁机制被当用户价值单列（红线 8）
