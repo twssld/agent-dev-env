@@ -34,7 +34,7 @@ cd /Users/taowei/code/context-hub && git fetch origin master
 
 # 从 origin/master tree 枚举所有 plugin（本地未推送的目录会被自动排除）
 # 并剔除黑名单
-BLACKLIST='^(atticus-chat|cn-backend-workflow|data-security|docx-operator|emr-serverless-spark-workflow|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|fe-sdd|fe-workflow|indo-backend-workflow|internal-office|jar-inspect|model-market|oa-flow-submitter|pm-profile|project-plugin-check|rnd-workflow|sea-backend-workflow|sea-risk|test-kit|wecom-doc-general|wecom-meeting-report)$'
+BLACKLIST='^(atticus-chat|cn-backend-workflow|data-security|docx-operator|emr-serverless-spark-workflow|fe-b-react-dev-kit|fe-b-vue2-dev-kit|fe-b-vue3-dev-kit|fe-c-dev-kit|fe-d2c|fe-plugin-report|fe-sdd|fe-workflow|indo-backend-workflow|internal-office|jar-inspect|model-market|oa-flow-submitter|pm-profile|project-plugin-check|rnd-workflow|risk-etl-tools|sea-backend-workflow|sea-risk|smartcall-kit|test-kit|wecom-doc-general|wecom-meeting-report)$'
 git ls-tree -d --name-only origin/master plugins/ | sed 's|^plugins/||' | grep -Ev "$BLACKLIST"
 
 # 按解析出的 SINCE / END，拉 origin/master 上本窗口内的 commit 列表
