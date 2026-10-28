@@ -42,7 +42,7 @@ git log origin/master --since="$SINCE" --until="$END 23:59:59" \
   --pretty=format:"%h %ad %s" --date=short -- plugins/
 ```
 
-**黑名单处理**：枚举结果里的黑名单 plugin 直接丢弃；后续 Step 2/3 不为它们生成 diff、不派 subagent、💤 节也不列出它们——整份周报完全不提及。
+**黑名单处理**：枚举结果里的黑名单 plugin 直接丢弃；后续 Step 2/3 不为它们生成 diff、不分析、💤 节也不列出它们——整份周报完全不提及。
 
 如需对单个 commit 做身份交叉验证：`git branch -r --contains <hash> | grep -x '  origin/master'`，空输出 → 丢弃。
 
@@ -73,7 +73,7 @@ git diff "$BASE" "$HEAD" -- plugins/<name>
 
 ### Step 2.5：拉全每个 plugin 的 WHY 材料（硬步骤，主线来源）
 
-MR 正文与作者写给使用者的定位说明，是重点层（WHY）的来源。**这一步不是可选辅助**——每个有改动的 plugin，都必须先把窗口内动过它的所有 MR 正文（①-③）连同作者定位说明（④）拉全，再喂给对应 subagent，否则 subagent 只能从 diff 硬凑、必然抓错重点。
+MR 正文与作者写给使用者的定位说明，是重点层（WHY）的来源。**这一步不是可选辅助**——每个有改动的 plugin，都必须先把窗口内动过它的所有 MR 正文（①-③）连同作者定位说明（④）拉全，再做 Step 3 的分析，否则只能从 diff 硬凑、必然抓错重点。
 
 **① 列出窗口内所有 merge commit（拿到 MR 编号）：**
 
@@ -131,17 +131,16 @@ git show "$HEAD":plugins/<name>/skills/<skill>/SKILL.md
 - README 开头的「解决的问题是……」通常就是该 plugin 的主线，比你从能力清单里归纳的"管生命周期"有信息量
 - 「边界 / 尚未实现」表划清了不做什么——不写成 bullet，但用来防止把"不做的事"描述成能力
 
-### Step 3：并行派发 subagent 做 plugin 级分析
+### Step 3：逐个 plugin 做分析
 
-对"有改动"的 plugin，**同一条消息里并行发出多个 Agent 调用**（每个 plugin 一个 subagent）：
+对"有改动"的 plugin 逐个分析：
 
-- 每个 subagent 拿到**自己那一个 plugin** 的两份输入：`--stat`+`diff`（事实层 WHAT），以及 Step 2.5 拉全的该 plugin **MR 正文 + 作者定位说明**（重点层 WHY）。**主线来自作者写下的初衷，diff 用来核实事实和补细节**——按 Step 2 的 WHAT/WHY 分层办
+- 每个 plugin 用**它自己**的两份输入：`--stat`+`diff`（事实层 WHAT），以及 Step 2.5 拉全的该 plugin **MR 正文 + 作者定位说明**（重点层 WHY）。**主线来自作者写下的初衷，diff 用来核实事实和补细节**——按 Step 2 的 WHAT/WHY 分层办
 - 提炼 2-4 条主线，每条要能回答"改的是哪个字段/文件/行为"，且主线是 MR 正文点明的目标，不是 diff 里最显眼的机械改动
-- 输出固定结构（**含文件覆盖核对，不可省略**）：
+- 每个 plugin 先按固定结构写出分析草稿（**含文件覆盖核对，不可省略**）：
 
   ```
   ## <plugin 名>
-  emoji: <📐/🔧/✨/🧩 等，按本周改动的整体语义选>
 
   主题 1
   - 维度标签: <抽象名词短语>
@@ -157,11 +156,10 @@ git show "$HEAD":plugins/<name>/skills/<skill>/SKILL.md
   ```
 
 - **文件覆盖核对是防漏主线的机械检查**：`--stat` 列出的每个文件都要归到某个主题，或明确判为次级项并写明砍掉的理由。**未被任何主题解释的文件就是漏掉的主线**。一个 MR 改 5+ 个文件时，正文一句话常压着多条独立主线（实测：某 MR 正文"统一事实源、补齐关系约束"一句，实际盖着「语义保真」和「组合覆盖设计 + 测试锚点」两条独立主线，横跨 5 个文件；只提炼出前者就漏了后者）
-- Subagent prompt 中需复述本 SKILL 的 **Bullet 规则 + 红线 + 克制原则**，防止自由发挥
 
 ### Step 4：主 agent 合成最终周报
 
-收集各 subagent 结果 → **按价值主题二次合并（红线 3）、逐条二次过克制原则** → 按「输出骨架」拼装 → 过「自检清单」核对 → 未改动 plugin 合并到 `💤` 节。subagent 给的条目不是照单全收：读者无感的删，同一价值主题的合并。
+汇总各 plugin 的分析草稿 → **按价值主题合并（红线 3）、逐条过克制原则**，并为各 plugin 选 emoji（全篇不重复） → 按「输出骨架」拼装 → 过「自检清单」核对 → 未改动 plugin 合并到 `💤` 节。草稿里的条目不是照单全收：读者无感的删，同一价值主题的合并。
 
 ### 克制原则
 
@@ -404,12 +402,11 @@ dry-run 试跑、二次确认、清单预览、权限/时效校验、幂等补�
 - [ ] Plugin 列表通过 `git ls-tree origin/master plugins/` 从 git tree 枚举（不是 `ls plugins/`），并已用黑名单过滤
 - [ ] 黑名单 plugin 在整份周报里完全未出现（不分析、不进 💤、不被提及）
 - [ ] 时间窗口按 `$ARGUMENTS` 解析（默认过去 7 天；`END` ≤ 今天-1d），标题/打招呼时段词与 `SINCE~END` 一致
-- [ ] **每个有改动 plugin 的 MR 正文已用 `glab mr view` 拉全**（不是只看 merge commit 标题），并作为对应 subagent 的输入
+- [ ] **每个有改动 plugin 的 MR 正文已用 `glab mr view` 拉全**（不是只看 merge commit 标题），并作为对应 plugin 分析的输入
 - [ ] **新增 plugin / 新增 skill 的作者定位说明已读**（README、plugin.json description 本次新增的短语、SKILL.md frontmatter 与「边界/尚未实现」章节）；搭便车、无独立 MR 正文的改动是走完这一步后才回退纯 diff，不是直接跳到 diff
 - [ ] **主线（WHY）来自作者写下的初衷，事实（WHAT）以 diff 为准**；没把 diff 里最显眼的机械改动（如删枚举值）误当主线
-- [ ] **每个 subagent 都交回了文件覆盖核对**，`--stat` 里的文件一个不漏地归到某主题或被判为次级项；未被解释的文件已回头确认是不是漏掉的主线
-- [ ] 多个 plugin 的分析通过**并行 subagent** 处理（同一条消息里多个 Agent 调用）
-- [ ] 合成时已按**价值主题**二次合并、逐条二次过克制原则，读者无感的条目已删
+- [ ] **每个有改动 plugin 都做了文件覆盖核对**，`--stat` 里的文件一个不漏地归到某主题或被判为次级项；未被解释的文件已回头确认是不是漏掉的主线
+- [ ] 合成时已按**价值主题**合并、逐条过克制原则，读者无感的条目已删
 - [ ] 正文 bullet 无 MR/PR 编号；MR 一览仅在用户要求时作附录
 - [ ] **优先 plugin 顺序正确**：`sdd → quality-kit → java-dev-kit → devops-workflow` 中有改动的已按此顺序排在最前
 - [ ] **每个 emoji 在整份周报里最多出现一次**，语义相近的已改用同类不同变体
